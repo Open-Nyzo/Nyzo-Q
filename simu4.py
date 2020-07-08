@@ -2,14 +2,15 @@
 Simulation with lottery in ip space instead of identifier space.
 
 - random hash (not questioned) - sha256 of a bitstring - 32 bytes
-- first 4 bytes of hash are directly compared to ip bytes, so an ip in a dense ip regions (c-class) is less likely to win
+- first 3 bytes of hash are hashed.
+- last byte is directly compared to last ip bytes
 - closest eligible ip is voted for
 
 """
 
 
 from libs.utils import random_hash
-from libs.utils import raw_ip_score, save_whois
+from libs.utils import shuffle_ip_score, save_whois
 from libs.nodesreader import NodesReader
 
 
@@ -24,7 +25,7 @@ if __name__ == "__main__":
         # print("Run {}".format(test))
         winners = []
         for i in range(5):
-            winner = readers[i].winner(cycle_hash, scoring=raw_ip_score)
+            winner = readers[i].winner(cycle_hash, scoring=shuffle_ip_score)
             ip_class = readers[i].verifiers[winner][1]
             ip_class_count = readers[i].ip_classes[ip_class][0]
             # print(winner.hex(), ip_class, ip_class_count)
@@ -35,5 +36,6 @@ if __name__ == "__main__":
             if winners[4] != winners[i]:
                 full = False
         print("{},{},{},{}".format(test, full, ip_class, ip_class_count))
+
 
 
