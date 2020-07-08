@@ -140,3 +140,89 @@ def current_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
         score += abs(hash_value - identifier_value)
     return score
 ```
+
+### ip_lottery
+
+See simulations/ip_lottery/stats.json and related CSVs
+
+```
+{"Simulation": "ip_lottery",
+  "Total": 1000, "Consensus": 987,
+  "Consensus_PC": "98.70",
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 523, "63": 77, "31": 39, "15": 17, "1": 344},
+  "Classes_PC": {"127": "52.30", "63": "7.70", "31": "3.90", "15": "1.70", "1": "34.40"},
+  "Classes_global_PC": {"127": "0.82", "63": "0.28", "31": "0.09", "15": "0.10", "1": "0.01"},
+  }
+```
+
+Scoring similar to the current scoring, but on ip rather than verifier id
+
+```
+def ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from ip distance
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    combined_array = b''
+    ip_bytes = socket.inet_aton(ip)
+    for i in range(4):
+        combined_array += ((cycle_hash[i] + ip_bytes[i]) & 0xff).to_bytes(1, byteorder='big')
+    hashed_ip = sha256(combined_array).digest()
+
+    score = 0
+    for i in range(32):
+        hash_value = cycle_hash[i] & 0xff
+        ip_value = hashed_ip[i] & 0xff
+        score += abs(hash_value - ip_value)
+    # print(ip, ip_bytes.hex(), hashed_ip.hex(), score)
+    return score
+```
+
+This is a "control" simulation. Since ip bytes are fuzzed before the distance computation, no order stands and large or small ip classes are not distinguishable.  
+Thus, the stats are alike the current lottery, still in favor of quantity.
+
+
+### raw_ip_lottery
+
+See simulations/raw_ip_lottery/stats.json and related CSVs
+
+```
+{"Simulation": "raw_ip_lottery",
+  "Total": 20000, "Consensus": 19528,
+  "Consensus_PC": "97.64"
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 1732, "63": 380, "31": 555, "15": 252, "1": 17081},
+  "Classes_PC": {"127": "8.66", "63": "1.90", "31": "2.77", "15": "1.26", "1": "85.41"},
+  "Classes_global_PC": {"127": "0.14", "63": "0.07", "31": "0.06", "15": "0.07", "1": "0.01"},
+  }
+```
+
+Scoring is done in a very naive way, by adding the distances in the 4 dimensions (4 bytes of ip)
+
+```
+def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from raw ip distance
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    score = 0
+    for i in range(4):
+        hash_value = cycle_hash[i]
+        ip_value = ip_bytes[i]
+        score += abs(hash_value - ip_value)
+    # print(ip, ip_bytes.hex(), hashed_ip.hex(), score)
+    return score
+```
+
+Again, this scoring is too naive as it does not keep the c-class information.
+every digit of the ip has equal importance, and in the end all that counts is the quantity.
+
+It's like having 4 lottery wheels with 0-255 on each, spinning the 4 and adding the scores. 
