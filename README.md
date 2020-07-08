@@ -358,4 +358,10 @@ Some bias still exist.
 I believe ip in lower and higher range of B and C class may have a slight edge.    
 This is harder to detect but I'll try to push the simulation further and see if I can model that.
 
+**Update**: 3,700,000 lottery events in simulations/linear_ip_lottery2/mass do indeed show a - heavier than expected - bias toward ips that are at start or end of a B-class.
+
+Refining.
+
 Any help is welcome!
+
+
