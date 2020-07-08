@@ -65,7 +65,7 @@ If we remove all bias in ips structure as well, we can no more ensure diversity 
 
 The thing is to find the good balance between diversity and bias. Roughly: how to draw all possible ips on the wheel so that everyone gets a fair chance, and diversity still is ensured.
 
-## Simulations
+## Simulations
 
 Nyzo does not have a consensus on the queue nodes.  
 Every in-cycle verifier has its own list of queue nodes, with related ip and first seen timestamp.  
@@ -178,7 +178,6 @@ def ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
         hash_value = cycle_hash[i] & 0xff
         ip_value = hashed_ip[i] & 0xff
         score += abs(hash_value - ip_value)
-    # print(ip, ip_bytes.hex(), hashed_ip.hex(), score)
     return score
 ```
 
@@ -218,7 +217,6 @@ def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
         hash_value = cycle_hash[i]
         ip_value = ip_bytes[i]
         score += abs(hash_value - ip_value)
-    # print(ip, ip_bytes.hex(), hashed_ip.hex(), score)
     return score
 ```
 
@@ -226,3 +224,59 @@ Again, this scoring is too naive as it does not keep the c-class information.
 every digit of the ip has equal importance, and in the end all that counts is the quantity.
 
 It's like having 4 lottery wheels with 0-255 on each, spinning the 4 and adding the scores. 
+
+
+### linear_ip_lottery
+
+See simulations/linear_ip_lottery/stats.json and related CSVs
+
+```
+{"Simulation": "linear_ip_lottery",
+  "Total": 20000, "Consensus": 16535,
+  "Consensus_PC": "82.67",
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 82, "63": 24, "31": 158, "15": 145, "1": 19591},
+  "Classes_PC": {"127": "0.41", "63": "0.12", "31": "0.79", "15": "0.73", "1": "97.95"},
+  "Classes_global_PC": {"127": "0.01", "63": "0.00", "31": "0.02", "15": "0.04", "1": "0.02"},
+  }
+```
+
+Scoring:
+First 4 bytes of the cycle_hash are converted to an integer.  
+Verifier IP is converted to an integer as well, most significant byte first.  
+That way, full IP space is mapped to a single dimension, with a.b.c.d.2 being equal to a.b.c.d.1 + 1  
+full c-class remain grouped.  
+
+This scoring requires less resources to compute than the regular scoring
+
+```
+def linear_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from raw ip distance in linear space
+    Possible side effect with high or low ip ranges?
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    ip_int = int.from_bytes(ip_bytes, "big")
+    hash_int = int.from_bytes(cycle_hash[:4], "big")
+    score = abs(hash_int - ip_int)
+    return score
+```
+
+At first glance, this may look fine.  IP from small classes have more odds than ip in large classes.   
+It's not.
+
+Consensus dropped. Why? Because the IP space is not uniform, and the queue IP space is even less uniform because, you know, large blocks on a small number of ISP (OVH, AMAZON...) often close together.  
+So - to use a simple example - nodes files may have their first ip as 3.33.15.23 and last one as 218.240.13.55
+since the hash is random, we will draw 0.x.x.x, 1.x.x.x., 2.x.x.x but also 219.x.x.x up to 255.x.x.x  
+All these are valid ips, that are not in nyzo queue. And every time you draw one of these, the larger or smaller ip of the node file wins.
+
+So with this model, some ips have a - significantly - greater chance to win. This is not acceptable.    
+Even if this is a by-product of current queue concentration on a few providers (quantity, not diversity), this would lead to another kind of concentration, not on the cheapest ip provider, but on the lowest and highest ip blocks.
+
+### shuffle_ip_lottery
+
+Broken WIP
