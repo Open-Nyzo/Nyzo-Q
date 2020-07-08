@@ -202,6 +202,8 @@ See simulations/raw_ip_lottery/stats.json and related CSVs
 
 Scoring is done in a very naive way, by adding the distances in the 4 dimensions (4 bytes of ip)
 
+> It's like having 4 lottery wheels with 0-255 on each, spinning the 4 and adding the scores. 
+
 ```
 def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     """
@@ -223,7 +225,6 @@ def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
 Again, this scoring is too naive as it does not keep the c-class information.
 every digit of the ip has equal importance, and in the end all that counts is the quantity.
 
-It's like having 4 lottery wheels with 0-255 on each, spinning the 4 and adding the scores. 
 
 
 ### linear_ip_lottery
@@ -246,6 +247,10 @@ First 4 bytes of the cycle_hash are converted to an integer.
 Verifier IP is converted to an integer as well, most significant byte first.  
 That way, full IP space is mapped to a single dimension, with a.b.c.d.2 being equal to a.b.c.d.1 + 1  
 full c-class remain grouped.  
+
+> All possible ips are on the lottery wheel, sorted, from 0.0.0.0 to 255.255.255.255.   
+> Some areas are more dense in eligible ips than others.  
+> You spin the wheel and take the closest eligible ip.
 
 This scoring requires less resources to compute than the regular scoring
 
@@ -280,3 +285,77 @@ Even if this is a by-product of current queue concentration on a few providers (
 ### shuffle_ip_lottery
 
 Broken WIP
+
+### linear_ip_lottery2
+
+See simulations/linear_ip_lottery2/stats.json and related CSVs
+
+```
+{
+  "Simulation": "linear_ip_lottery2",
+  "Total": 20000, "Consensus": 19152,
+  "Consensus_PC": "95.76",
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 150, "63": 116, "31": 265, "15": 154, "1": 19315},
+  "Classes_PC": {"127": "0.75", "63": "0.58", "31": "1.32", "15": "0.77", "1": "96.58"},
+  "Classes_global_PC": {"127": "0.01", "63": "0.02", "31": "0.03", "15": "0.05", "1": "0.02"}
+}
+```
+
+Idea here is to fuzz the first 2 bytes of the ip address to avoid the edge issues of liner_ip_lottery, as well as non uniformity of available ipv4 space (like 10.0.0.0 being private).  
+A permutation table is applied to the {0..255} space and is used to shuffle bytes 1 and 2 of the ip.  
+That table is built in a deterministic pseudo radom way, from the cycle hash.  
+
+This means that every 50 blocks, as the cycle hash changes, the permutation table changes and maps the ip space in a different way.  
+Only the first 2 bytes are shuffled, so full class C ranges remain grouped.
+
+The shuffle map only needs to be built once per 50 blocks.  
+I used a python shuffle(), a Knuth shuffle with any prng can do.
+
+```
+def shuffle(cycle_hash: bytes):
+    global SHUFFLE_MAP
+    SHUFFLE_MAP = [i for i in range(256)]
+    random = Random(cycle_hash)
+    random.shuffle(SHUFFLE_MAP)
+```
+
+Scoring:
+
+```
+def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from raw ip distance in linear space, with 2 first bytes being pseudo randomly shuffled
+    Possible side effect with high or low ip ranges?
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    ip_bytes_shuffle = (SHUFFLE_MAP[ip_bytes[0]]).to_bytes(1, byteorder='big')
+    ip_bytes_shuffle += (SHUFFLE_MAP[ip_bytes[1]]).to_bytes(1, byteorder='big')
+    ip_bytes_shuffle += ip_bytes[2:]
+    ip_int = int.from_bytes(ip_bytes_shuffle, "big")
+    hash_int = int.from_bytes(cycle_hash[:4], "big")
+    score = abs(hash_int - ip_int)
+    return score
+```
+
+> It's like you take the whole IP space ribbon (one dimension), cut it in 256x256 equal pieces (no C-class will be cut), shuffle them and glue them back on the lottery wheel.  
+> Every 50 blocks, you shuffle in a different way and get a new layout.
+> Then you spin the wheel and take the closest eligible ip.  
+> Some regions are more dense than others, hence diversity is favored instead of quantity.  
+
+- As seen in the stats, ips in classes smaller than 128 ips have more chances to win than the average ip in a 128+ ip class.  
+- Consensus remains good, way better than the previous naive scoring.  
+- all entropy from cycle_hash still is used, as seed for the permutation map.  
+- computation requirements are light, lighter than current lottery scoring (no hash, no 2x32 additions)  
+- permutation map is only to be done once per 50 blocks  
+- since the permutation changes every 50 blocks, non uniformity in the queue ip address space is averaged over time, and you can't knwo what ip will have more chances in one month. This again encourages diversity.   
+
+Some bias still exist.    
+I believe ip in lower and higher range of B and C class may have a slight edge.    
+This is harder to detect but I'll try to push the simulation further and see if I can model that.
+
+Any help is welcome!
