@@ -360,7 +360,70 @@ This is harder to detect but I'll try to push the simulation further and see if 
 
 **Update**: 3,700,000 lottery events in simulations/linear_ip_lottery2/mass do indeed show a - heavier than expected - bias toward ips that are at start or end of a B-class.
 
-Refining.
+### linear_ip_lottery4
+
+See simulations/linear_ip_lottery4/stats.json and related CSVs
+
+```
+{
+  "Simulation": "linear_ip_lottery4",
+  "Total": 20000, "Consensus": 19120,
+  "Consensus_PC": "95.60",
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 212, "63": 141, "31": 256, "15": 119, "1": 19272},
+  "Classes_PC": {"127": "1.06", "63": "0.70", "31": "1.28", "15": "0.60", "1": "96.36"},
+  "Classes_global_PC": {"127": "0.02", "63": "0.02", "31": "0.03", "15": "0.04", "1": "0.02"}
+  }
+```
+
+Same as linear_ip_lottery2, but all 4 bytes of the ip are independently shuffled, one by one.   
+The same permutation map is used for all segments. This can induce side effects (ips like a.a.a.a will travel less than a.b.c.d).
+
+IP density of every c-class is preserved, but   
+- all c-classes are shuffled so their neighbours do change every cycle hash
+- ips in a c-class are shuffled as well, so the min and max value of each c-class never are the same. This is supposed to avoid the same lower and higher ips to consistently get more odds. 
+
+> It's like you cut all c-class (you have 256x256x256 of them) shuffle them, and for every c-class, you also shuffle - same way for everyone, the ips in the c-class.
+
+Consensus_PC is good.
+
+Classes_global_PC looks good (roughly same value for every class, no more leverage for 127+ ip class)
+
+Bias: See 3,200,000 lottery events in simulations/linear_ip_lottery4/mass
+
+As expected, most of the 256 c-class ips are down the file, with one occurence.   
+However some ips still have huge odds vs other ones.
+
+
+### linear_ip_lottery5
+
+See simulations/linear_ip_lottery5/stats.json and related CSVs
+
+```
+{
+  "Simulation": "linear_ip_lottery5",
+  "Total": 20000, "Consensus": 19147,
+  "Consensus_PC": "95.73",
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 178, "63": 130, "31": 319, "15": 125, "1": 19248},
+  "Classes_PC": {"127": "0.89", "63": "0.65", "31": "1.59", "15": "0.62", "1": "96.24"},
+  "Classes_global_PC": {"127": "0.01", "63": "0.02", "31": "0.04", "15": "0.04", "1": "0.02"}
+}
+```
+
+Same as linear_ip_lottery5, but all 4 bytes of the ip are independently shuffled, one by one *with a different permutation map per segment*   
+
+Consensus_PC is good.
+
+Classes_global_PC looks less balanced than previous test.
+
+Bias: See 3,200,000 lottery events in simulations/linear_ip_lottery5/mass
+
+Still, some ips have huge odds vs other ones. Something else is at play.   
+"Funny" thing, the most lucky ips sets - despite the different shuffling schemes - are very close between linear_ip_lottery5 and linear_ip_lottery4 and even linear_ip_lottery2...  
+
+
+Refining more.
 
 Any help is welcome!
 
