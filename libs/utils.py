@@ -131,6 +131,17 @@ def shuffle(cycle_hash: bytes):
     # print(SHUFFLE_MAP)
 
 
+def shuffle4(cycle_hash: bytes):
+    global SHUFFLE_MAP
+    SHUFFLE_MAP = []
+    random = Random(cycle_hash)
+    for i in range(4):
+        map = [i for i in range(256)]
+        random.shuffle(map)
+        SHUFFLE_MAP.append(list(map))  # copy, not reference
+    # print(SHUFFLE_MAP)
+
+
 def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     """
     Nyzo Score computation from raw ip distance in linear space, with 2 first bytes being pseudo randomly shuffled
@@ -169,16 +180,32 @@ def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     ip_bytes_shuffle += (SHUFFLE_MAP[ip_bytes[3]]).to_bytes(1, byteorder='big')
     ip_int = int.from_bytes(ip_bytes_shuffle, "big")
     """
-    ip_int = SHUFFLE_MAP[ip_bytes[0]]  * 256 * 256 * 256\
+    ip_int = SHUFFLE_MAP[ip_bytes[0]] * 256 * 256 * 256\
              + SHUFFLE_MAP[ip_bytes[1]] * 256 * 256\
              + SHUFFLE_MAP[ip_bytes[2]] * 256 \
              + SHUFFLE_MAP[ip_bytes[3]]
-    # shuffled = socket.inet_ntoa(ip_bytes_shuffle)
     hash_int = int.from_bytes(cycle_hash[:4], "big")
     score = abs(hash_int - ip_int)
-    # print(ip, ip_bytes, ip_bytes_shuffle, shuffled, cycle_hash[:4].hex(), hash_int, score)
-    # sys.exit()
     return score
+
+
+def linear_ip_score5(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with a different permutation map each
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    ip_int = SHUFFLE_MAP[0][ip_bytes[0]] * 256 * 256 * 256\
+             + SHUFFLE_MAP[1][ip_bytes[1]] * 256 * 256\
+             + SHUFFLE_MAP[2][ip_bytes[2]] * 256 \
+             + SHUFFLE_MAP[3][ip_bytes[3]]
+    hash_int = int.from_bytes(cycle_hash[:4], "big")
+    score = abs(hash_int - ip_int)
+    return score
+
 
 def random_hash() -> bytes:
     """Let say this is a cycle hash"""

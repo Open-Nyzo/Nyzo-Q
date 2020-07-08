@@ -5,14 +5,14 @@ Simulation with lottery in shuffled linear ip space
 - first 4 bytes of hash are converted to an int.
 - ip is converted to a 4 bytes int as well
 - all 4 bytes of ip are shuffled via a pseudo random lookup table, fed from the hash, to account for non uniform density in public ip v4
-- same table is used for all 4 bytes in turn.
+- 4 different tables are used for every ip byte, to get the most possible uniform repartition, while not shuffling outside of c-class borders.
 - closest eligible ip is voted for
 
 """
 
 
 from libs.utils import random_hash
-from libs.utils import linear_ip_score4, shuffle
+from libs.utils import linear_ip_score5, shuffle4
 from libs.nodesreader import NodesReader
 
 
@@ -24,11 +24,11 @@ if __name__ == "__main__":
 
     for test in range(10000):
         cycle_hash = random_hash()
-        shuffle(cycle_hash)
+        shuffle4(cycle_hash)
         # print("Run {}".format(test))
         winners = []
         for i in range(5):
-            winner = readers[i].winner(cycle_hash, scoring=linear_ip_score4)
+            winner = readers[i].winner(cycle_hash, scoring=linear_ip_score5)
             ip_class = readers[i].verifiers[winner][1]
             ip_class_count = readers[i].ip_classes[ip_class][0]
             # print(winner.hex(), ip_class, ip_class_count)

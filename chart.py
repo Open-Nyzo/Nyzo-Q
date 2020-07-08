@@ -12,6 +12,7 @@ SIMULATION = "shuffle_ip_lottery"
 SIMULATION = "linear_ip_lottery"
 SIMULATION = "linear_ip_lottery2"
 SIMULATION = "linear_ip_lottery4"
+SIMULATION = "linear_ip_lottery5"
 
 
 DIR = pathlib.Path('./simulations/{}'.format(SIMULATION))
@@ -35,7 +36,10 @@ def process(file_name):
         for line in fp:
             if "DIVERGE" in line:
                 continue
-            _, consensus, ip_class, ip_count = line.strip().split(",")
+            try:
+                _, consensus, ip_class, ip_count = line.strip().split(",")
+            except:
+                continue
             STATS["Total"] += 1
             ip_count = int(ip_count)
             if consensus == 'True':
