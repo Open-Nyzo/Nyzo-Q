@@ -11,6 +11,7 @@ SIMULATION = "raw_ip_lottery"
 SIMULATION = "shuffle_ip_lottery"
 SIMULATION = "linear_ip_lottery"
 SIMULATION = "linear_ip_lottery2"
+SIMULATION = "linear_ip_lottery4"
 
 
 DIR = pathlib.Path('./simulations/{}'.format(SIMULATION))

@@ -153,6 +153,33 @@ def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
+def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from raw ip distance in linear space, with allt bytes being pseudo randomly shuffled with same permutation map
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    """
+    ip_bytes_shuffle = (SHUFFLE_MAP[ip_bytes[0]]).to_bytes(1, byteorder='big')
+    ip_bytes_shuffle += (SHUFFLE_MAP[ip_bytes[1]]).to_bytes(1, byteorder='big')
+    ip_bytes_shuffle += (SHUFFLE_MAP[ip_bytes[2]]).to_bytes(1, byteorder='big')
+    ip_bytes_shuffle += (SHUFFLE_MAP[ip_bytes[3]]).to_bytes(1, byteorder='big')
+    ip_int = int.from_bytes(ip_bytes_shuffle, "big")
+    """
+    ip_int = SHUFFLE_MAP[ip_bytes[0]]  * 256 * 256 * 256\
+             + SHUFFLE_MAP[ip_bytes[1]] * 256 * 256\
+             + SHUFFLE_MAP[ip_bytes[2]] * 256 \
+             + SHUFFLE_MAP[ip_bytes[3]]
+    # shuffled = socket.inet_ntoa(ip_bytes_shuffle)
+    hash_int = int.from_bytes(cycle_hash[:4], "big")
+    score = abs(hash_int - ip_int)
+    # print(ip, ip_bytes, ip_bytes_shuffle, shuffled, cycle_hash[:4].hex(), hash_int, score)
+    # sys.exit()
+    return score
+
 def random_hash() -> bytes:
     """Let say this is a cycle hash"""
     random = getrandbits(1024).to_bytes(1024//8, byteorder='big')
