@@ -21,7 +21,7 @@ if __name__ == "__main__":
         readers.append(NodesReader("NODES/nodes.{}".format(i+1)))
     # save_whois()
 
-    for test in range(10000):
+    for test in range(1000):
         cycle_hash = random_hash()
         shuffle(cycle_hash)
         # print("Run {}".format(test))
