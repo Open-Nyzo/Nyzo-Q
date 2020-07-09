@@ -21,6 +21,7 @@ warnings.warn = warn
 
 
 SHUFFLE_MAP = []
+SHUFFLE_ABC = [0, 1, 2]
 
 
 def current_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
@@ -80,10 +81,14 @@ def shuffle_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
 
     score = 0
     for i in range(3):
-        hash_value = cycle_hash[i]
+        hash_value = cycle_hash[i + 4]
+        # Note: since we have more entropy than needed, we can hash and compare with different parts of the hash
         ip_value = cycle_hash[i] ^ ip_bytes[i]
+        # xor instead of addition then hash to keep more information and require less computation.
         score += abs(hash_value - ip_value)
-    score += abs(cycle_hash[3] - ip_bytes[3])
+    # Beware: We mashed up 6 different cases in the same value, lost too much info
+    score *= 256  # 3 first bytes = elected shuffled c- class, Most significant
+    score += abs(cycle_hash[3 + 4] - ip_bytes[3])  # then distance for last byte of ip
     # print(ip, score)
     return score
 
@@ -131,6 +136,16 @@ def shuffle(cycle_hash: bytes):
     # print(SHUFFLE_MAP)
 
 
+def shuffle_plus(cycle_hash: bytes):
+    global SHUFFLE_MAP
+    SHUFFLE_MAP = [i for i in range(256)]
+    random = Random(cycle_hash)
+    random.shuffle(SHUFFLE_MAP)
+    global SHUFFLE_ABC
+    SHUFFLE_ABC = [0, 1, 2]
+    random.shuffle(SHUFFLE_ABC)
+
+
 def shuffle4(cycle_hash: bytes):
     global SHUFFLE_MAP
     SHUFFLE_MAP = []
@@ -166,7 +181,7 @@ def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
 
 def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     """
-    Nyzo Score computation from raw ip distance in linear space, with allt bytes being pseudo randomly shuffled with same permutation map
+    Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with same permutation map
     """
     score = sys.maxsize
     if ip == '':
@@ -187,6 +202,35 @@ def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     hash_int = int.from_bytes(cycle_hash[:4], "big")
     score = abs(hash_int - ip_int)
     return score
+
+
+def linear_ip_score4_plus(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with same permutation map
+    Shuffle a,b,c order from a.b.c.d to effectively reorder the various c-class and their gaps.
+    When two candidates (before and after) have same score, give preference to the right one.
+    Should be similar to first picking a single random c-class from the different c-classes, then picking a single ip from that c-class
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    ip_int = SHUFFLE_MAP[ip_bytes[SHUFFLE_ABC[0]]] * 256 * 256 * 256\
+             + SHUFFLE_MAP[ip_bytes[SHUFFLE_ABC[1]]] * 256 * 256\
+             + SHUFFLE_MAP[ip_bytes[SHUFFLE_ABC[2]]] * 256 \
+             + SHUFFLE_MAP[ip_bytes[3]]
+    hash_int = int.from_bytes(cycle_hash[:4], "big")
+    diff = hash_int - ip_int
+    if diff > 0:
+        return 4 * abs(diff) -1
+    else:
+        return 4 * abs(diff)
+    """
+    offset = -1 if diff > 0 else 0
+    score = 4 * abs(diff) + offset
+    return score
+    """
 
 
 def linear_ip_score5(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
