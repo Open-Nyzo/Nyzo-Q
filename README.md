@@ -222,8 +222,22 @@ def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
 - permutation map is only to be done once per 50 blocks and uses little memory (256 bytes)  
 - since the permutation changes every 50 blocks, non uniformity in the queue ip address space is averaged over time, and you can't know what ip will have more chances in one month. This again encourages diversity.   
 
-Bias: Currently being computed on a large enough sample.
+Bias: See 3,200,000 lottery events in simulations/hashed_class/mass/all.count.sorted.csv
 
+`    571 3.216.68.208,3.216.68,1`
+571 is the number of times that line won (on 3,200,000 simulations from same initial state, different cycle-hash)  
+3.216.68.208 is the winning IP  
+3.216.68 the c-class of that IP  
+1 is the number of different IPs in that class.
+
+We can see that the occurrences of the ips are roughly inverse proportional to the class size.  
+IPs in full 256 C-classes are down the file, with 1 occurrence only.  
+Since they are 256, that C-Class still has 256 chances to have one IP elected.  
+That a 1:2 ratio, penalizing full ip classes.  
+IRL, the "single" ips would then have more chances to be chosen, and disappear from the Queue.     
+**There, we clearly favor diversity over quantity** (maybe too much, why some alternate scoring to be presented)
+
+Another bias analysis will be run on the c-classes alone, to estimate that specific bias (are some c-class significantly more lucky than others?)
 
 Optimization: some of the linear_ scorings below are attempts to "shuffle" the c-classes without resorting to hash and 32 bytes hamming like distance   
 (for perf reasons). Like using permutations on 4 bytes of the ip and permuting the 3 first bytes.    
