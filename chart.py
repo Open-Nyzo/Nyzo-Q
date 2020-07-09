@@ -14,6 +14,7 @@ SIMULATION = "linear_ip_lottery2"
 SIMULATION = "linear_ip_lottery4"
 SIMULATION = "linear_ip_lottery5"
 SIMULATION = "linear_ip_lottery4b"
+SIMULATION = "hashed_class"
 
 
 DIR = pathlib.Path('./simulations/{}'.format(SIMULATION))
