@@ -65,14 +65,24 @@ If we remove all bias in ips structure as well, we can no more ensure diversity 
 
 The thing is to find the good balance between diversity and bias. Roughly: how to draw all possible ips on the wheel so that everyone gets a fair chance, and diversity still is ensured.
 
+**Self imposed constraints:**  
+- Do not require more structures (like, no map of c-classes)  
+- Do not be more complex to compute  
+- Do not change significantly the sort and scoring internal worklow and interface (ie: just change the scoring function) 
+
 ## Simulations
 
 Nyzo does not have a consensus on the queue nodes.  
 Every in-cycle verifier has its own list of queue nodes, with related ip and first seen timestamp.  
 This makes it harder to elect a common verifier in a safe way, since 2 different in-cycle will have a different queue list and data.
 
-To account for that and make sure the various options do not add more scattering, I ran simulations from 5 nodes files from 5 different in-cycles nodes.  
+To account for that and make sure the various options do not add more scattering, I ran simulations from 5 nodes files from 5 different in-cycles nodes.    
 This can be run on more than that of course.
+
+Current lottery was included  as baseline benchmark.
+
+Most up to date and severe scoring is the "hashed_class" one.    
+Ideal scoring may rather be an intermediate way, between current "quantity only" rule and hashed_class "diversity first" rule, in order to avoid users rushing to some new ip behaviour in a drastic way.  
 
 ### current_lottery
 
@@ -116,6 +126,13 @@ If you have an ip in the "1" class, majority one, you only have 0.01% chances.
 
 > Note: sim.csv line content: index, Consensus(True|False), C-Class Winner, Number of IPs in that class
 
+
+Bias: See partial data in simulations/current_lottery/mass/temp.count.sorted.csv  
+> The simulation show a ratio of 1 to 15 between verifiers. Some public identifiers are more likely to get elected than others, in a significant way.      
+> This may be caused by the fuzzing step, where public id is - byte to byte - added to the cycle hash: MSB is likely lost.   
+> Deeper analysis should be run to dig that, but the baseline shows a bias.
+
+
 Current lottery scoring is ported from official nyzo code
 
 ```
@@ -140,6 +157,86 @@ def current_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
         score += abs(hash_value - identifier_value)
     return score
 ```
+
+
+### hashed_class
+
+**Extreme, but most fit candidate so far, moved up.**    
+Previous experiments and scorings are left below, for historical reason and comparison.  
+Some experiments below tried to achieve the same results as this one with less compute ressources but failed so far.
+
+See simulations/hashed_class/stats.json and related CSVs
+
+```
+{
+  "Simulation": "hashed_class",
+  "Total": 20000, "Consensus": 19300,
+  "Consensus_PC": "96.50",
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 176, "63": 93, "31": 146, "15": 50, "1": 19535},
+  "Classes_PC": {"127": "0.88", "63": "0.46", "31": "0.73", "15": "0.25", "1": "97.67"},
+  "Classes_global_PC": {"127": "0.014", "63": "0.016", "31": "0.016", "15": "0.015", "1": "0.016"}
+}
+```
+
+> Scoring idea is to give every c-class the same odd, no matter the number of ips it contains.      
+> Then, pick one ip from that c-class.
+
+The challenge here is to do that just with a scoring function, that only gets cycle hash and ips, one by one.   
+Only local info, no global info like c-class lists.
+
+The first part of the scoring is similar to the current scoring, but on first 3 bytes of the ip rather than verifier id.  
+The last IP byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.  
+
+```
+def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+    """
+    Nyzo Score computation from hash of IP start to effectively reorder the various c-class and their gaps.
+    Then complete the score with latest IP byte.
+    That last IP byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.
+    Should be similar to first picking a single random c-class from the different c-classes, then picking a single ip from that c-class
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = socket.inet_aton(ip)
+    seed = cycle_hash + ip_bytes[:3]  # one c-class = one seed
+    hashed_c = sha256(seed).digest()
+
+    score = 0
+    for i in range(32):
+        score += abs(cycle_hash[i] - hashed_c[i])
+    score *= 256
+
+    # Up until there, score is the same for all ips of the same c-class
+    score += abs(SHUFFLE_MAP[ip_bytes[3]] - cycle_hash[0])
+    # shuffle map so lower and highest ips do not get more odds
+    return score
+```
+
+- As seen in the stats, IPs in classes smaller than 128 ips have as many chances to win than the average ip in a 128+ ip class.  
+- Consensus remains good.  
+- all entropy from cycle_hash still is used, as seed for the permutation map and c-class score.  
+- computation requirements are ok: The performance of this scoring is slightly less than the current one.  
+- permutation map is only to be done once per 50 blocks and uses little memory (256 bytes)  
+- since the permutation changes every 50 blocks, non uniformity in the queue ip address space is averaged over time, and you can't know what ip will have more chances in one month. This again encourages diversity.   
+
+Bias: Currently being computed on a large enough sample.
+
+
+Optimization: some of the linear_ scorings below are attempts to "shuffle" the c-classes without resorting to hash and 32 bytes hamming like distance   
+(for perf reasons). Like using permutations on 4 bytes of the ip and permuting the 3 first bytes.    
+I was not able to obtain a bias-less function that way -yet.   
+
+The big trap is the sparse and very non-uniform IP repartition from the nodes file. 
+
+Mathematicians, please advise!
+
+
+> Next step will be to mitigate this scoring with a more uniform scoring, so not to penalize lightly occupied c-classes.      
+> This would allow to still favor diversity, without incitating for a massive "unique c-class" ip hunt. 
+
 
 ### ip_lottery
 
@@ -181,9 +278,10 @@ def ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 ```
 
-This is a "control" simulation. Since ip bytes are fuzzed before the distance computation, no order stands and large or small ip classes are not distinguishable.  
+This is a "control" simulation. Since all ip bytes are fuzzed before the distance computation, no order stands and large or small ip classes are not distinguishable.  
 Thus, the stats are alike the current lottery, still in favor of quantity.
 
+Bias: To run if needed
 
 ### raw_ip_lottery
 
@@ -285,6 +383,7 @@ Even if this is a by-product of current queue concentration on a few providers (
 ### shuffle_ip_lottery
 
 Broken WIP
+
 
 ### linear_ip_lottery2
 
@@ -420,7 +519,7 @@ Classes_global_PC looks less balanced than previous test.
 Bias: See 3,200,000 lottery events in simulations/linear_ip_lottery5/mass
 
 Still, some ips have huge odds vs other ones. Something else is at play.   
-"Funny" thing, the most lucky ips sets - despite the different shuffling schemes - are very close between linear_ip_lottery5 and linear_ip_lottery4 and even linear_ip_lottery2...  
+"Funny" thing, the most lucky ips sets - despite the different shuffling schemes - are very close between linear_ip_lottery5 and linear_ip_lottery4 and even linear_ip_lottery2.  
 
 
 Refining more.

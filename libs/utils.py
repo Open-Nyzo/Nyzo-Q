@@ -239,9 +239,9 @@ def linear_ip_score4_plus(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
 
 def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     """
-    Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with same permutation map
-    Shuffle a,b,c order from a.b.c.d to effectively reorder the various c-class and their gaps.
-    When two candidates (before and after) have same score, give preference to the right one.
+    Nyzo Score computation from hash of IP start to effectively reorder the various c-class and their gaps.
+    Then complete the score with latest IP byte.
+    That last IP byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.
     Should be similar to first picking a single random c-class from the different c-classes, then picking a single ip from that c-class
     """
     score = sys.maxsize

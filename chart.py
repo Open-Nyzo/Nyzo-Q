@@ -70,7 +70,7 @@ if __name__ == "__main__":
     for classe in ("127", "63", "31", "15", "1"):
         STATS["Classes_PC"][classe] = "{:0.2f}".format(STATS["Classes"][classe] / STATS["Total"] * 100)
 
-        STATS["Classes_global_PC"][classe] = "{:0.2f}".format(float(STATS["Classes_PC"][classe]) / STATS["Queue"][classe])
+        STATS["Classes_global_PC"][classe] = "{:0.3f}".format(float(STATS["Classes_PC"][classe]) / STATS["Queue"][classe])
 
     print(STATS)
     with open('./simulations/{}/stats.json'.format(SIMULATION), "w") as fp:
