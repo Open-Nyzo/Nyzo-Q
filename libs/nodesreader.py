@@ -5,7 +5,7 @@ Nyzo Nodes file reader
 from libs.utils import identifier_to_bytes, ip2class, ip_whois
 from libs.utils import current_score, ip_score
 from sys import maxsize
-
+import socket
 
 class NodesReader:
 
@@ -19,8 +19,9 @@ class NodesReader:
                 if inactive_ts == '-1':
                     verifier_bytes = identifier_to_bytes(verifier)
                     ip_class = ip2class(ip)
+                    ip_bytes = bytearray(socket.inet_aton(ip))  # pre-calc for perfs reasons.
                     # print(verifier_bytes.hex(), ip, ip_class, tcp, udp, queue_ts, void, inactive_ts)
-                    self.verifiers[verifier_bytes] = [ip, ip_class, False, False, False]
+                    self.verifiers[verifier_bytes] = [ip, ip_class, ip_bytes, False, False]
                     if ip_class in self.ip_classes:
                         self.ip_classes[ip_class][0] += 1
                         self.ip_classes[ip_class][1].append((verifier_bytes, ip))
@@ -37,7 +38,7 @@ class NodesReader:
         winning_score = maxsize
         winning_identifier = b''
         for verifier in self.verifiers:
-            score = scoring(cycle_hash, verifier, self.verifiers[verifier][0])
+            score = scoring(cycle_hash, verifier, self.verifiers[verifier][0], self.verifiers[verifier][2])
             # print(verifier.hex(), score)
             if score < winning_score:
                 winning_score = score

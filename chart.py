@@ -15,12 +15,15 @@ SIMULATION = "linear_ip_lottery4"
 SIMULATION = "linear_ip_lottery5"
 SIMULATION = "linear_ip_lottery4b"
 SIMULATION = "hashed_class"
+SIMULATION = "hashed_class_mix"
 
 
 DIR = pathlib.Path('./simulations/{}'.format(SIMULATION))
 
 STATS = {"Simulation": SIMULATION,
          "Total": 0, "Consensus": 0,
+         "Consensus_PC": 0,
+         "Queue": {},
          "Classes": {
              "127": 0,
              "63": 0,

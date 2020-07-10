@@ -237,13 +237,15 @@ That a 1:2 ratio, penalizing full ip classes.
 IRL, the "single" ips would then have more chances to be chosen, and disappear from the Queue.     
 **There, we clearly favor diversity over quantity** (maybe too much, why some alternate scoring to be presented)
 
-Another bias analysis will be run on the c-classes alone, to estimate that specific bias (are some c-class significantly more lucky than others?)
+Another bias analysis has be run on the c-classes alone, to estimate that specific bias (are some c-class significantly more lucky than others?)  
+See simulations/hashed_class/mass/allc.count.sorted.csv  
+Occurrence roughly range from 426 to 570. That's a 1:1.33 ratio. Some c-classes are slighly more lucky than others (they can be classes with 1 ip or 256) but the bias is minor compared to current lottery bias (1:15)
 
 Optimization: some of the linear_ scorings below are attempts to "shuffle" the c-classes without resorting to hash and 32 bytes hamming like distance   
 (for perf reasons). Like using permutations on 4 bytes of the ip and permuting the 3 first bytes.    
 I was not able to obtain a bias-less function that way -yet.   
 
-The big trap is the sparse and very non-uniform IP repartition from the nodes file. 
+The big trap is the sparse and very non-uniform IP repartition from the nodes file. Hashing the parts to fuzz seems to be the best way so far.
 
 Mathematicians, please advise!
 

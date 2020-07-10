@@ -2,7 +2,7 @@
 Helpers
 """
 
-from hashlib import sha256
+from hashlib import sha256, sha1, blake2b
 import json
 import socket
 import sys
@@ -24,7 +24,7 @@ SHUFFLE_MAP = []
 SHUFFLE_ABC = [0, 1, 2]
 
 
-def current_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def current_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation, see
     https://github.com/n-y-z-o/nyzoVerifier/blob/75786060a822443154bcdaaa371fe8696d54a201/src/main/java/co/nyzo/verifier/NewVerifierQueueManager.java#L214
@@ -46,7 +46,7 @@ def current_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def ip_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from ip distance
     """
@@ -69,7 +69,7 @@ def ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def shuffle_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def shuffle_ip_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from xor'd c class ip distance
     """
@@ -93,7 +93,7 @@ def shuffle_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from raw ip distance
     """
@@ -111,7 +111,7 @@ def raw_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def linear_ip_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def linear_ip_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from raw ip distance in linear space
     Possible side effect with high or low ip ranges?
@@ -134,6 +134,13 @@ def shuffle(cycle_hash: bytes):
     random = Random(cycle_hash)
     random.shuffle(SHUFFLE_MAP)
     # print(SHUFFLE_MAP)
+
+
+def shuffle_mix(cycle_hash: bytes):
+    global SHUFFLE_MAP
+    SHUFFLE_MAP = [i for i in range(16)]
+    random = Random(cycle_hash)
+    random.shuffle(SHUFFLE_MAP)
 
 
 def shuffle_plus(cycle_hash: bytes, display:bool=False):
@@ -160,7 +167,7 @@ def shuffle4(cycle_hash: bytes):
     # print(SHUFFLE_MAP)
 
 
-def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from raw ip distance in linear space, with 2 first bytes being pseudo randomly shuffled
     Possible side effect with high or low ip ranges?
@@ -182,7 +189,7 @@ def linear_ip_score2(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with same permutation map
     """
@@ -207,7 +214,7 @@ def linear_ip_score4(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def linear_ip_score4_plus(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def linear_ip_score4_plus(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with same permutation map
     Shuffle a,b,c order from a.b.c.d to effectively reorder the various c-class and their gaps.
@@ -237,7 +244,7 @@ def linear_ip_score4_plus(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     """
 
 
-def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from hash of IP start to effectively reorder the various c-class and their gaps.
     Then complete the score with latest IP byte.
@@ -264,7 +271,95 @@ def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
     return score
 
 
-def linear_ip_score5(cycle_hash: bytes, identifier: bytes, ip: str) -> int:
+# sha256
+def hashed_class_mix_score256(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
+    """
+    Nyzo Score computation from hash of IP start + end of last IP byte to effectively reorder the various c-class and their gaps.
+    Then complete the score with first half latest IP byte.
+    That last IP half byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.
+    Should be similar to first picking a single random class (c-class+end of ip) from the different classes, then picking a single block prefix from these class
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = bytearray(socket.inet_aton(ip))
+    # seed = cycle_hash + ip_bytes[:3] + (ip_bytes[3] & 15).to_bytes(1, byteorder='big')  # one c-class + last 4 bits = one seed
+    ip_bytes[3] = ip_bytes[3] & 15  # Mask first 4 bits of last byte.
+    seed = cycle_hash + ip_bytes
+    hashed_c = sha256(seed).digest()
+
+    score = 0
+    for i in range(32):
+        # Do we need all 32 bytes? more information than the ip entropy we fed (3.5 bytes). Way faster with only 16? => 30% gain
+        score += abs(cycle_hash[i] - hashed_c[i])
+    # score = sum(abs(r - h) for r,h in zip(cycle_hash, hashed_c))  # Slightly slower
+    score *= 16
+    # Up until there, score is the same for all ips of the same class
+    score += abs(SHUFFLE_MAP[ip_bytes[3]//16] - cycle_hash[0]//16)
+    # shuffle map so lower and highest ips parts do not get more odds
+    return score
+
+
+# sha1
+def hashed_class_mix_score1(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
+    """
+    Nyzo Score computation from hash of IP start + end of last IP byte to effectively reorder the various c-class and their gaps.
+    Then complete the score with first half latest IP byte.
+    That last IP half byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.
+    Should be similar to first picking a single random class (c-class+end of ip) from the different classes, then picking a single block prefix from these class
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+
+    ip_bytes = bytearray(socket.inet_aton(ip))
+    # seed = cycle_hash + ip_bytes[:3] + (ip_bytes[3] & 15).to_bytes(1, byteorder='big')  # one c-class + last 4 bits = one seed
+    ip_bytes[3] = ip_bytes[3] & 15  # Mask first 4 bits of last byte.
+    seed = cycle_hash + ip_bytes
+    hashed_c = sha1(seed).digest()
+
+    score = 0
+    for i in range(20):
+        score += abs(cycle_hash[i] - hashed_c[i])
+    # score = sum(abs(r - h) for r,h in zip(cycle_hash, hashed_c))  # Slightly slower
+    score *= 16
+    # Up until there, score is the same for all ips of the same class
+    score += abs(SHUFFLE_MAP[ip_bytes[3]//16] - cycle_hash[0]//16)
+    # shuffle map so lower and highest ips parts do not get more odds
+    return score
+
+
+# blake2b, 16 bytes (for perf reasons)
+def hashed_class_mix_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
+    """
+    Nyzo Score computation from hash of IP start + end of last IP byte to effectively reorder the various c-class and their gaps.
+    Then complete the score with first half latest IP byte.
+    That last IP half byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.
+    Should be similar to first picking a single random class (c-class+end of ip) from the different classes, then picking a single block prefix from these class
+    """
+    score = sys.maxsize
+    if ip == '':
+        return score
+    # ip_bytes = bytearray(socket.inet_aton(ip))  # significant perf gain by handling ip as bytes once for all. (around 10%)
+    last_byte = ip_bytes[3]
+    # seed = cycle_hash + ip_bytes[:3] + (ip_bytes[3] & 15).to_bytes(1, byteorder='big')  # one c-class + last 4 bits = one seed
+    ip_bytes[3] = ip_bytes[3] & 15  # Mask first 4 bits of last byte.
+    # this step could also be pre-calc for perf reasons.
+    seed = cycle_hash + ip_bytes
+    hashed_c = blake2b(seed, digest_size=16).digest()
+    score = 0
+    for i in range(16):
+        score += abs(cycle_hash[i] - hashed_c[i])
+    # score = sum(abs(r - h) for r,h in zip(cycle_hash, hashed_c))  # Slightly slower
+    score *= 16
+    # Up until there, score is the same for all ips of the same class
+    score += abs(SHUFFLE_MAP[last_byte//16] - cycle_hash[0]//16)
+    # shuffle map so lower and highest ips parts do not get more odds
+    return score
+
+
+def linear_ip_score5(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from raw ip distance in linear space, with all bytes being pseudo randomly shuffled with a different permutation map each
     """
