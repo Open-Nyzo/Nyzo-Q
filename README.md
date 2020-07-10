@@ -254,6 +254,38 @@ Mathematicians, please advise!
 > This would allow to still favor diversity, without incitating for a massive "unique c-class" ip hunt. 
 
 
+### hashed_class_mix
+
+Variant of the above hashed_class, with more fuzz.  
+in addition to 3 first bytes, the second half of the last byte is also hashed.
+
+Goal was to give users in midly dense c-classes (regular users at isps) more edge, without favoring full c-classes too much.
+
+
+See simulations/hashed_class_mix/stats.json and related CSVs
+
+```
+{
+  "Simulation": "hashed_class_mix",
+  "Total": 20000, "Consensus": 19510,
+  "Consensus_PC": "97.55", 
+  "Queue": {"127": 64, "63": 28, "31": 45, "15": 17, "1": 6221},
+  "Classes": {"127": 1900, "63": 964, "31": 1391, "15": 511, "1": 15234},
+  "Classes_PC": {"127": "9.50", "63": "4.82", "31": "6.96", "15": "2.56", "1": "76.17"},
+  "Classes_global_PC": {"127": "0.148", "63": "0.172", "31": "0.155", "15": "0.151", "1": "0.012"},
+}
+```
+
+- Consensus is good (the more we fuzz, the more its uniform and differences in nodes files tend to average)  
+- Compared to "hashed_class", Classes PC show a shift from "1" class to more dense classes (9.5% for 127 IPs  and more c-classes)
+- This scoring uses Blake2b and 16 bytes hash instead of 32 bytes sha256 for performance reasons (it's faster then than current scoring)  
+  sha256 can still be used and should make no difference.
+- Permutation map is shorter (16 bytes instead of 256)
+- Precomputation of nodes IPs as byte arrays significantly improves performance as well
+
+Bias Analysis currently running.
+
+
 ### ip_lottery
 
 See simulations/ip_lottery/stats.json and related CSVs
