@@ -244,7 +244,7 @@ def linear_ip_score4_plus(cycle_hash: bytes, identifier: bytes, ip: str, ip_byte
     """
 
 
-def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
+def hashed_class_score_v1(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
     """
     Nyzo Score computation from hash of IP start to effectively reorder the various c-class and their gaps.
     Then complete the score with latest IP byte.
@@ -267,6 +267,28 @@ def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: 
 
     # Up until there, score is the same for all ips of the same c-class
     score += abs(SHUFFLE_MAP[ip_bytes[3]] - cycle_hash[0])
+    # shuffle map so lower and highest ips do not get more odds
+    return score
+
+
+def hashed_class_score(cycle_hash: bytes, identifier: bytes, ip: str, ip_bytes: bytearray) -> int:
+    """
+    Nyzo Score computation from hash of IP start to effectively reorder the various c-class and their gaps.
+    Then complete the score with latest IP byte.
+    That last IP byte is shuffled from a permutation map, built from cycle hash, so that start of block and end of block ip do not get more odds.
+    Should be similar to first picking a single random c-class from the different c-classes, then picking a single ip from that c-class
+    """
+    seed = cycle_hash[:8] + ip_bytes[:3]  # one c-class = one seed
+    hashed_c = blake2b(seed, digest_size=16).digest()
+
+    score = 0
+    for i in range(16):
+        score += abs(cycle_hash[i + 8] - hashed_c[i])
+    # score = sum(abs(r - h) for r,h in zip(cycle_hash, hashed_c))  # Slightly slower
+    score *= 256
+
+    # Up until there, score is the same for all ips of the same c-class
+    score += abs(SHUFFLE_MAP[ip_bytes[3]] - cycle_hash[30])
     # shuffle map so lower and highest ips do not get more odds
     return score
 
